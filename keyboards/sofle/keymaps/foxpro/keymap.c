@@ -342,7 +342,7 @@ static const char PROGMEM logo_full[] = {
 	0x0e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x0f, 0x0f, 0x0f, 0x07, 0x00
 };
 
-#define FRAME_DURATION 180
+#define FRAME_DURATION 33
 #define LOGO_BYTES 512
 #define MARQUEE_SIZE (2 * LOGO_BYTES)
 
@@ -350,6 +350,7 @@ uint32_t marquee_timer = 0;
 uint32_t marquee_frame = 0;
 
 static void render_logo(void) {
+
     void frame(void) {
         marquee_frame = (marquee_frame + 1) % 256;
         static char output[MARQUEE_SIZE];
