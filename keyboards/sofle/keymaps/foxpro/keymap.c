@@ -133,7 +133,6 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 };
 
 #ifdef OLED_ENABLE
-
 bool is_jumping = false;
 bool showed_jump = true;
 #define MIN_WALK_SPEED 10
@@ -273,8 +272,7 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
     }
 }
 
-
-static const char PROGMEM logo_full[] = {
+static const unsigned char PROGMEM logo[] = {
     0,  0,  0,  0,  0,128,128,192,192,192,192,192,192,192,192,192,192,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,192,192,192,192,192,128,  0,  0,  0,  0,  0,  0,
     0,192,192,192,192,192,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, 64,240,240,240,224, 64,  0,192,240,240,240,224,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,224,240,240,240,240,224,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,240,240,240,240,240,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,252,248,240,224,128,  0,  0,  0,254,255,254,  0,  0,  0,128,224,112,248,252,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,192,248,252,255,255,127, 15,  7,  3,  3,  3,  3,  3,  3,  7,  7,  0,  0,  0,  0,  0,  0,224,248,248,248,248,120,120,120,248,248,248,248,248,  0,  0,  0,  0,112,120,120, 56, 56, 60, 60, 60,120,248,248,248,240,224,  0,  0,  0,  0,248,248,248,248,248, 56, 56, 56, 56,120,248,248,248,240,224,
@@ -294,57 +292,40 @@ static const char PROGMEM logo_full[] = {
 #define BYTES_IN_COL 4
 #define PAGE_BYTES (BYTES_IN_COL * BYTES_PER_ROW)
 
-#define MARQUEE_BYTES (sizeof(logo_full))
+#define MARQUEE_BYTES (sizeof(logo))
 #define MARQUE_ROW_BYTES (MARQUEE_BYTES / BYTES_IN_COL)
 
-#define FRAME_DURATION 30
+// lower causes desync
+#define FRAME_DURATION 51
 
-uint32_t marquee_timer = 0;
-uint32_t marquee_offset = 0;
 
 static void render_logo(void) {
-    void frame(void) {
-        marquee_offset = (marquee_offset + 1) % BYTES_PER_ROW;
-        static char output[PAGE_BYTES];
-        static uint16_t page_iterator = 0;
+    static uint16_t timer = 0;
+    static int16_t offset = 0;
+    static unsigned char output[PAGE_BYTES];
+    static uint8_t row = 0;
+    static uint16_t col = 0;
 
-        for (int b = 0; b < MARQUEE_BYTES; b++) {
-            uint16_t col = b % MARQUE_ROW_BYTES;
-            uint16_t row = b / MARQUE_ROW_BYTES;
-            if(col <= BYTES_PER_ROW) {
-                output[page_iterator++] = pgm_read_byte_near(logo_full + b);
+    void frame(void) {
+        offset = (offset + 4) % MARQUE_ROW_BYTES;
+
+        for (uint16_t i = 0; i < MARQUEE_BYTES; i++) {
+            row = i / MARQUE_ROW_BYTES;
+            col = i % MARQUE_ROW_BYTES;
+            if(col < BYTES_PER_ROW) {
+                uint16_t o = (MARQUE_ROW_BYTES + i + offset) % MARQUE_ROW_BYTES + row * MARQUE_ROW_BYTES;
+                output[BYTES_PER_ROW * row + col] = pgm_read_byte_near(logo + o);
             }
         }
-        oled_write_raw(output, sizeof(output));
+        oled_write_raw(output, PAGE_BYTES);
     }
-
-    // void frame(void) {
-    //     marquee_frame = (marquee_frame + 1) % OLED_WIDTH_PX;
-    //     static char output[PAGE_BYTES];
-    //     static int page_index = 0;
-    //     for (int b = 0; b < MARQUEE_BYTES; b++) {
-    //         int col = b % 304;
-
-    //         if(col < 128) {
-    //             output[page_index] = pgm_read_byte_near(logo_full + b);
-    //             page_index++;
-    //         }
-    //     }
-    //     oled_write_raw(output, sizeof(output));
-    // }
-
-
-    if (timer_elapsed32(marquee_timer) > FRAME_DURATION) {
-        marquee_timer = timer_read32();
+    if (timer_elapsed32(timer) > FRAME_DURATION) {
+        timer = timer_read32();
         frame();
     }
 }
 
 static void print_status_narrow(void) {
-    render_keyboard_pet(0, 0);
-
-    oled_set_cursor(0, 4);
-
     oled_write_ln_P(PSTR("MODE"), false);
     oled_write_ln_P(PSTR(""), false);
     if (keymap_config.swap_lctl_lgui) {
@@ -384,6 +365,9 @@ static void print_status_narrow(void) {
     }
     led_t led_usb_state = host_keyboard_led_state();
     oled_write_ln_P(PSTR("CPSLK"), led_usb_state.caps_lock);
+
+    oled_set_cursor(0, 80);
+    render_keyboard_pet(0, 80);
 }
 
 oled_rotation_t oled_init_user(oled_rotation_t rotation) {
@@ -396,8 +380,8 @@ oled_rotation_t oled_init_user(oled_rotation_t rotation) {
 bool oled_task_user(void) {
     if (is_keyboard_master()) {
         // led_usb_state = host_keyboard_led_state();
-        render_logo();
         // print_status_narrow();
+        render_logo();
     } else {
         render_logo();
     }
