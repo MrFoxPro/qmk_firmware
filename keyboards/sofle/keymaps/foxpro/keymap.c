@@ -268,7 +268,7 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
     if (current_wpm > 0) {
         anim_sleep = timer_read32();
     } else if(timer_elapsed32(anim_sleep) > OLED_TIMEOUT) {
-        // oled_off();
+        oled_off();
     }
 }
 
@@ -296,36 +296,35 @@ static const unsigned char PROGMEM logo[] = {
 #define MARQUE_ROW_BYTES (MARQUEE_BYTES / BYTES_IN_COL)
 
 // lower causes desync
-#define FRAME_DURATION 51
+#define FRAME_DURATION 100
 
-
+uint32_t marquee_timer = 0;
+uint32_t marquee_offset = 0;
 static void render_logo(void) {
-    static uint16_t timer = 0;
-    static int16_t offset = 0;
-    static unsigned char output[PAGE_BYTES];
-    static uint8_t row = 0;
-    static uint16_t col = 0;
 
     void frame(void) {
-        offset = (offset + 4) % MARQUE_ROW_BYTES;
-
+        marquee_offset = (marquee_offset + 4) % MARQUE_ROW_BYTES;
+        static char output[PAGE_BYTES];
         for (uint16_t i = 0; i < MARQUEE_BYTES; i++) {
-            row = i / MARQUE_ROW_BYTES;
-            col = i % MARQUE_ROW_BYTES;
+            uint8_t row = i / MARQUE_ROW_BYTES;
+            uint16_t col = i % MARQUE_ROW_BYTES;
             if(col < BYTES_PER_ROW) {
-                uint16_t o = (MARQUE_ROW_BYTES + i + offset) % MARQUE_ROW_BYTES + row * MARQUE_ROW_BYTES;
+                uint16_t o = (MARQUE_ROW_BYTES + i + marquee_offset) % MARQUE_ROW_BYTES + row * MARQUE_ROW_BYTES;
                 output[BYTES_PER_ROW * row + col] = pgm_read_byte_near(logo + o);
             }
         }
         oled_write_raw(output, PAGE_BYTES);
     }
-    if (timer_elapsed32(timer) > FRAME_DURATION) {
-        timer = timer_read32();
+    if (timer_elapsed32(marquee_timer) > FRAME_DURATION) {
+        marquee_timer = timer_read32();
         frame();
     }
 }
 
 static void print_status_narrow(void) {
+
+    // oled_set_cursor(0, 8);
+
     oled_write_ln_P(PSTR("MODE"), false);
     oled_write_ln_P(PSTR(""), false);
     if (keymap_config.swap_lctl_lgui) {
@@ -363,25 +362,24 @@ static void print_status_narrow(void) {
         default:
             oled_write_ln_P(PSTR("Undef"), false);
     }
-    led_t led_usb_state = host_keyboard_led_state();
+    led_usb_state = host_keyboard_led_state();
     oled_write_ln_P(PSTR("CPSLK"), led_usb_state.caps_lock);
 
-    oled_set_cursor(0, 80);
-    render_keyboard_pet(0, 80);
+    render_keyboard_pet(0, 11);
+
 }
 
 oled_rotation_t oled_init_user(oled_rotation_t rotation) {
     if (is_keyboard_master()) {
-        // return OLED_ROTATION_270;
+        return OLED_ROTATION_270;
     }
     return rotation;
 }
 
 bool oled_task_user(void) {
     if (is_keyboard_master()) {
-        // led_usb_state = host_keyboard_led_state();
-        // print_status_narrow();
-        render_logo();
+        current_wpm = get_current_wpm();
+        print_status_narrow();
     } else {
         render_logo();
     }
