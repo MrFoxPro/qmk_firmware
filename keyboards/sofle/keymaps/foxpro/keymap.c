@@ -32,7 +32,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
  * |------+------+------+------+------+------|  MUTE |    |       |------+------+------+------+------+------|
  * |LShift|   Z  |   X  |   C  |   V  |   B  |-------|    |-------|   N  |   M  |   ,  |   .  |   /  |RShift|
  * `-----------------------------------------/       /     \      \-----------------------------------------'
- *            | LGUI | LAlt | LCTR |LOWER | /Enter  /       \Space \  |RAISE | RCTR | RAlt | RGUI |
+ *            | LGUI | LAlt | LCTR |LOWER | /Space  /       \Enter \  |RAISE | RCTR | RAlt | RGUI |
  *            |      |      |      |      |/       /         \      \ |      |      |      |      |
  *            `----------------------------------'           '------''---------------------------'
  */
@@ -42,7 +42,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   KC_ESC,   KC_Q,   KC_W,    KC_E,    KC_R,    KC_T,                     KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,  KC_BSPC,
   KC_TAB,   KC_A,   KC_S,    KC_D,    KC_F,    KC_G,                     KC_H,    KC_J,    KC_K,    KC_L, KC_SCLN,  KC_QUOT,
   KC_LSFT,  KC_Z,   KC_X,    KC_C,    KC_V,    KC_B, KC_MUTE,     XXXXXXX,KC_N,    KC_M, KC_COMM,  KC_DOT, KC_SLSH,  KC_RSFT,
-                 KC_LGUI,KC_LALT,KC_LCTL, MO(_LOWER), KC_ENT,      KC_SPC,  MO(_RAISE), KC_RCTL, KC_RALT, KC_RGUI
+                 KC_LGUI,KC_LALT,KC_LCTL, MO(_LOWER), KC_SPC,      KC_ENT,  MO(_RAISE), KC_RCTL, KC_RALT, KC_RGUI
 ),
 /*
  * COLEMAK
@@ -133,22 +133,46 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 };
 
 #ifdef OLED_ENABLE
-#define OLED_TIMEOUT 10000
-bool is_jumping = false;
-bool showed_jump = true;
-#define MIN_WALK_SPEED 10
-#define MIN_RUN_SPEED 50
-#define ANIM_FRAME_DURATION 200 // how long each frame lasts in ms
-#define ANIM_SIZE 96 // number of bytes per image
 
-uint8_t current_wpm = 0;
-uint8_t current_frame = 0;
-static uint32_t anim_timer;
-static uint16_t anim_sleep;
+
+#define OLED_TIMEOUT 25000
+#define OLED_WIDTH_PX 128
+#define OLED_HEIGHT_PX 32
+
+#define BYTES_PER_ROW  128
+#define BYTES_IN_COL 4
+#define PAGE_BYTES (BYTES_IN_COL * BYTES_PER_ROW)
+
+
 led_t led_usb_state;
+uint8_t current_wpm;
 
-static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
-    static const char PROGMEM sit[2][ANIM_SIZE] = {
+
+/* <LUNA> */
+#define LUNA_MIN_WALK_SPEED 10
+#define LUNA_MIN_RUN_SPEED 50
+#define LUNA_ANIM_FRAME_DURATION 200
+#define LUNA_ANIM_SIZE 96
+
+typedef struct {
+    bool is_jumping;
+    bool is_sneaking;
+    bool showed_jump;
+    uint32_t anim_timer;
+    uint32_t sleep_timer;
+    uint8_t current_frame;
+} LunaState;
+
+static LunaState luna = {
+    .is_jumping = false,
+    .is_sneaking = false,
+    .showed_jump = true,
+
+    .current_frame = 0
+};
+
+static void render_keyboard_pet(int keyboard_pet_x, int keyboard_pet_y) {
+    static const char PROGMEM sit[2][LUNA_ANIM_SIZE] = {
         {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe0, 0x1c,
             0x02, 0x05, 0x02, 0x24, 0x04, 0x04, 0x02, 0xa9, 0x1e, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -166,7 +190,7 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
             0x3e, 0x1c, 0x20, 0x20, 0x3e, 0x0f, 0x11, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
         }
     };
-    static const char PROGMEM walk[2][ANIM_SIZE] = {
+    static const char PROGMEM walk[2][LUNA_ANIM_SIZE] = {
         {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x40, 0x20, 0x10, 0x90, 0x90, 0x90, 0xa0, 0xc0, 0x80, 0x80,
             0x80, 0x70, 0x08, 0x14, 0x08, 0x90, 0x10, 0x10, 0x08, 0xa4, 0x78, 0x80, 0x00, 0x00, 0x00, 0x00,
@@ -184,7 +208,7 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
             0x02, 0x1c, 0x14, 0x08, 0x10, 0x20, 0x2c, 0x32, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
         }
     };
-    static const char PROGMEM run[2][ANIM_SIZE] = {
+    static const char PROGMEM run[2][LUNA_ANIM_SIZE] = {
         {
             0x00, 0x00, 0x00, 0x00, 0xe0, 0x10, 0x08, 0x08, 0xc8, 0xb0, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
             0x80, 0x40, 0x40, 0x3c, 0x14, 0x04, 0x08, 0x90, 0x18, 0x04, 0x08, 0xb0, 0x40, 0x80, 0x00, 0x00,
@@ -202,7 +226,7 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
             0x02, 0x1e, 0x20, 0x20, 0x18, 0x0c, 0x14, 0x1e, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
         }
     };
-    static const char PROGMEM bark[2][ANIM_SIZE] = {
+    static const char PROGMEM bark[2][LUNA_ANIM_SIZE] = {
         {
             0x00, 0xc0, 0x20, 0x10, 0xd0, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x80, 0x40,
             0x3c, 0x14, 0x04, 0x08, 0x90, 0x18, 0x04, 0x08, 0xb0, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -220,41 +244,62 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
             0x04, 0x08, 0x10, 0x26, 0x2b, 0x32, 0x04, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
         }
     };
+    static const char PROGMEM sneak[2][LUNA_ANIM_SIZE] = {
+        {
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x40, 0x40, 0x40, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0xc0, 0x40, 0x40, 0x80, 0x00, 0x80, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x1e, 0x21, 0xf0, 0x04, 0x02, 0x02, 0x02, 0x02, 0x03, 0x02, 0x02, 0x04,
+            0x04, 0x04, 0x03, 0x01, 0x00, 0x00, 0x09, 0x01, 0x80, 0x80, 0xab, 0x04, 0xf8, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x1c, 0x20, 0x20, 0x3c, 0x0f, 0x11, 0x1f, 0x02, 0x06,
+            0x18, 0x20, 0x20, 0x38, 0x08, 0x10, 0x18, 0x04, 0x04, 0x02, 0x02, 0x01, 0x00, 0x00, 0x00, 0x00,
+        },
+        {
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x40, 0x40, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0xe0, 0xa0, 0x20, 0x40, 0x80, 0xc0, 0x20, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x3e, 0x41, 0xf0, 0x04, 0x02, 0x02, 0x02, 0x03, 0x02, 0x02, 0x02, 0x04,
+            0x04, 0x02, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x40, 0x40, 0x55, 0x82, 0x7c, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3f, 0x20, 0x30, 0x0c, 0x02, 0x05, 0x09, 0x12, 0x1e, 0x04,
+            0x18, 0x10, 0x08, 0x10, 0x20, 0x28, 0x34, 0x06, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+        }
+    };
 
     void animate_keyboard_pet(void) {
-        if (is_jumping || !showed_jump) {
-            oled_set_cursor(KEYBOARD_PET_X,KEYBOARD_PET_Y +2);
+        if (luna.is_jumping || !luna.showed_jump) {
+            oled_set_cursor(keyboard_pet_x, keyboard_pet_y +2);
             oled_write_P(PSTR("     "), false);
-            oled_set_cursor(KEYBOARD_PET_X,KEYBOARD_PET_Y -1);
-            showed_jump = true;
+            oled_set_cursor(keyboard_pet_x, keyboard_pet_y -1);
+            luna.showed_jump = true;
         } else {
-            oled_set_cursor(KEYBOARD_PET_X,KEYBOARD_PET_Y -1);
+            oled_set_cursor(keyboard_pet_x, keyboard_pet_y -1);
             oled_write_P(PSTR("     "), false);
-            oled_set_cursor(KEYBOARD_PET_X,KEYBOARD_PET_Y);
+            oled_set_cursor(keyboard_pet_x, keyboard_pet_y);
         }
 
-        current_frame = (current_frame + 1) % 2;
+        luna.current_frame = (luna.current_frame + 1) % 2;
 
         if(led_usb_state.caps_lock) {
-            oled_write_raw_P(bark[abs(1 - current_frame)], ANIM_SIZE);
-        } else if(current_wpm <= MIN_WALK_SPEED) {
-            oled_write_raw_P(sit[abs(1 - current_frame)], ANIM_SIZE);
-        } else if(current_wpm <= MIN_RUN_SPEED) {
-            oled_write_raw_P(walk[abs(1 - current_frame)], ANIM_SIZE);
+            oled_write_raw_P(bark[abs(1 - luna.current_frame)], LUNA_ANIM_SIZE);
+        } else if (luna.is_sneaking) {
+            oled_write_raw_P(sneak[luna.current_frame], LUNA_ANIM_SIZE);
+        }
+        else if(current_wpm <= LUNA_MIN_WALK_SPEED) {
+            oled_write_raw_P(sit[abs(1 - luna.current_frame)], LUNA_ANIM_SIZE);
+        } else if(current_wpm <= LUNA_MIN_RUN_SPEED) {
+            oled_write_raw_P(walk[abs(1 - luna.current_frame)], LUNA_ANIM_SIZE);
         } else {
-            oled_write_raw_P(run[abs(1 - current_frame)], ANIM_SIZE);
+            oled_write_raw_P(run[abs(1 - luna.current_frame)], LUNA_ANIM_SIZE);
         }
     }
-    if(timer_elapsed32(anim_timer) > ANIM_FRAME_DURATION) {
-        anim_timer = timer_read32();
-        if(timer_elapsed(anim_sleep) < OLED_TIMEOUT) {
+    if(timer_elapsed32(luna.anim_timer) > LUNA_ANIM_FRAME_DURATION) {
+        luna.anim_timer = timer_read32();
+        if(timer_elapsed32(luna.sleep_timer) < OLED_TIMEOUT) {
             animate_keyboard_pet();
         }
     }
 
     if (current_wpm > 0) {
-        anim_sleep = timer_read();
-    } else if(timer_elapsed(anim_sleep) > OLED_TIMEOUT) {
+        luna.sleep_timer = timer_read32();
+    } else if(timer_elapsed32(luna.sleep_timer) > OLED_TIMEOUT) {
         oled_off();
     }
 }
@@ -272,46 +317,43 @@ static const unsigned char PROGMEM logo[] = {
     14, 14, 14, 14, 15, 15, 15, 15, 15, 14, 14, 14, 14, 14,  0,  0,  0,  0,  0,  0,  0,  0, 15, 15, 31, 31, 15,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  3,  3,  3,  3,  3, 15, 31, 63,127,255,127, 63, 31,  7,  3,  3,  3,  3,  3,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 };
 
-#define OLED_WIDTH_PX 128
-#define OLED_HEIGHT_PX 32
-
-#define BYTES_PER_ROW  128
-#define BYTES_IN_COL 4
-#define PAGE_BYTES (BYTES_IN_COL * BYTES_PER_ROW)
-
 #define MARQUEE_BYTES (sizeof(logo))
 #define MARQUE_ROW_BYTES (MARQUEE_BYTES / BYTES_IN_COL)
+#define MARQUEE_FRAME_DURATION 71
 
-#define FRAME_DURATION 71
+typedef struct {
+    uint32_t anim_timer;
+    uint32_t sleep_timer;
+    uint32_t frame;
+} MarqueeState;
 
-static uint32_t marquee_timer;
-static uint16_t marquee_sleep_timer;
-uint32_t marquee_offset = 0;
-static void render_logo(void) {
+static MarqueeState marquee = {
+    .frame = 0
+};
 
+static void render_marquee(void) {
     void frame(void) {
-        marquee_offset = (marquee_offset + 4) % MARQUE_ROW_BYTES;
+        marquee.frame = (marquee.frame + 4) % MARQUE_ROW_BYTES;
         static char output[PAGE_BYTES];
         for (uint16_t i = 0; i < MARQUEE_BYTES; i++) {
             uint8_t row = i / MARQUE_ROW_BYTES;
             uint16_t col = i % MARQUE_ROW_BYTES;
             if(col < BYTES_PER_ROW) {
-                uint16_t o = (MARQUE_ROW_BYTES + i + marquee_offset) % MARQUE_ROW_BYTES + row * MARQUE_ROW_BYTES;
+                uint16_t o = (MARQUE_ROW_BYTES + i + marquee.frame) % MARQUE_ROW_BYTES + row * MARQUE_ROW_BYTES;
                 output[BYTES_PER_ROW * row + col] = pgm_read_byte_near(logo + o);
             }
         }
         oled_write_raw(output, PAGE_BYTES);
     }
-    if (timer_elapsed32(marquee_timer) > FRAME_DURATION) {
-        marquee_timer = timer_read32();
-        if(timer_elapsed(marquee_sleep_timer) < OLED_TIMEOUT) {
+    if (timer_elapsed32(marquee.anim_timer) > MARQUEE_FRAME_DURATION) {
+        marquee.anim_timer = timer_read32();
+        if(timer_elapsed32(marquee.sleep_timer) < OLED_TIMEOUT) {
             frame();
         }
     }
-
     if (current_wpm > 0) {
-        marquee_sleep_timer = timer_read();
-    } else if(timer_elapsed(marquee_sleep_timer) > OLED_TIMEOUT) {
+        marquee.sleep_timer = timer_read32();
+    } else if(timer_elapsed32(marquee.sleep_timer) > OLED_TIMEOUT) {
         oled_off();
     }
 }
@@ -371,7 +413,7 @@ bool oled_task_user(void) {
         led_usb_state = host_keyboard_led_state();
         print_status_narrow();
     } else {
-        render_logo();
+        render_marquee();
     }
     return false;
 }
@@ -514,6 +556,22 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 unregister_code(KC_Z);
             }
             return false;
+        case KC_LCTL:
+        case KC_RCTL:
+            if (record->event.pressed) {
+                luna.is_sneaking = true;
+            } else {
+                luna.is_sneaking = false;
+            }
+            break;
+        case KC_SPC:
+            if (record->event.pressed) {
+                luna.is_jumping  = true;
+                luna.showed_jump = false;
+            } else {
+                luna.is_jumping = false;
+            }
+            break;
     }
     return true;
 }
