@@ -142,12 +142,11 @@ bool showed_jump = true;
 
 uint8_t current_wpm = 0;
 uint8_t current_frame = 0;
-uint32_t anim_timer = 0;
-uint32_t anim_sleep = 0;
+static uint32_t anim_timer;
+static uint16_t anim_sleep;
 led_t led_usb_state;
 
 static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
-    /* Sit */
     static const char PROGMEM sit[2][ANIM_SIZE] = {
         {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe0, 0x1c,
@@ -166,8 +165,6 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
             0x3e, 0x1c, 0x20, 0x20, 0x3e, 0x0f, 0x11, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
         }
     };
-
-    /* Walk */
     static const char PROGMEM walk[2][ANIM_SIZE] = {
         {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x40, 0x20, 0x10, 0x90, 0x90, 0x90, 0xa0, 0xc0, 0x80, 0x80,
@@ -186,8 +183,6 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
             0x02, 0x1c, 0x14, 0x08, 0x10, 0x20, 0x2c, 0x32, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
         }
     };
-
-    /* Run */
     static const char PROGMEM run[2][ANIM_SIZE] = {
         {
             0x00, 0x00, 0x00, 0x00, 0xe0, 0x10, 0x08, 0x08, 0xc8, 0xb0, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
@@ -206,8 +201,6 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
             0x02, 0x1e, 0x20, 0x20, 0x18, 0x0c, 0x14, 0x1e, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
         }
     };
-
-    /* Bark */
     static const char PROGMEM bark[2][ANIM_SIZE] = {
         {
             0x00, 0xc0, 0x20, 0x10, 0xd0, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x80, 0x40,
@@ -227,10 +220,7 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
         }
     };
 
-    /* animation */
     void animate_keyboard_pet(void) {
-
-        /* jump */
         if (is_jumping || !showed_jump) {
             oled_set_cursor(KEYBOARD_PET_X,KEYBOARD_PET_Y +2);
             oled_write_P(PSTR("     "), false);
@@ -242,10 +232,8 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
             oled_set_cursor(KEYBOARD_PET_X,KEYBOARD_PET_Y);
         }
 
-        /* switch frame */
         current_frame = (current_frame + 1) % 2;
 
-        /* current animation status */
         if(led_usb_state.caps_lock) {
             oled_write_raw_P(bark[abs(1 - current_frame)], ANIM_SIZE);
         } else if(current_wpm <= MIN_WALK_SPEED) {
@@ -256,18 +244,16 @@ static void render_keyboard_pet(int KEYBOARD_PET_X, int KEYBOARD_PET_Y) {
             oled_write_raw_P(run[abs(1 - current_frame)], ANIM_SIZE);
         }
     }
-
-    /* animation timer */
     if(timer_elapsed32(anim_timer) > ANIM_FRAME_DURATION) {
         anim_timer = timer_read32();
-        if(timer_elapsed32(anim_sleep) < OLED_TIMEOUT) {
+        if(timer_elapsed(anim_sleep) < OLED_TIMEOUT) {
             animate_keyboard_pet();
         }
     }
 
     if (current_wpm > 0) {
-        anim_sleep = timer_read32();
-    } else if(timer_elapsed32(anim_sleep) > OLED_TIMEOUT) {
+        anim_sleep = timer_read();
+    } else if(timer_elapsed(anim_sleep) > OLED_TIMEOUT) {
         oled_off();
     }
 }
@@ -295,8 +281,7 @@ static const unsigned char PROGMEM logo[] = {
 #define MARQUEE_BYTES (sizeof(logo))
 #define MARQUE_ROW_BYTES (MARQUEE_BYTES / BYTES_IN_COL)
 
-// lower causes desync
-#define FRAME_DURATION 80
+#define FRAME_DURATION 70
 
 uint32_t marquee_timer = 0;
 uint32_t marquee_offset = 0;
@@ -322,9 +307,6 @@ static void render_logo(void) {
 }
 
 static void print_status_narrow(void) {
-
-    // oled_set_cursor(0, 8);
-
     oled_write_ln_P(PSTR("MODE"), false);
     oled_write_ln_P(PSTR(""), false);
     if (keymap_config.swap_lctl_lgui) {
@@ -343,7 +325,6 @@ static void print_status_narrow(void) {
         default:
             oled_write_P(PSTR("Undef"), false);
     }
-    // Print current layer
     oled_write_ln_P(PSTR("LAYER"), false);
     switch (get_highest_layer(layer_state)) {
         case _COLEMAK:
@@ -366,7 +347,6 @@ static void print_status_narrow(void) {
     oled_write_ln_P(PSTR("CPSLK"), led_usb_state.caps_lock);
 
     render_keyboard_pet(0, 11);
-
 }
 
 oled_rotation_t oled_init_user(oled_rotation_t rotation) {
