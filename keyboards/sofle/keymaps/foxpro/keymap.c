@@ -133,6 +133,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 };
 
 #ifdef OLED_ENABLE
+#define OLED_TIMEOUT 10000
 bool is_jumping = false;
 bool showed_jump = true;
 #define MIN_WALK_SPEED 10
@@ -281,9 +282,10 @@ static const unsigned char PROGMEM logo[] = {
 #define MARQUEE_BYTES (sizeof(logo))
 #define MARQUE_ROW_BYTES (MARQUEE_BYTES / BYTES_IN_COL)
 
-#define FRAME_DURATION 70
+#define FRAME_DURATION 71
 
-uint32_t marquee_timer = 0;
+static uint32_t marquee_timer;
+static uint16_t marquee_sleep_timer;
 uint32_t marquee_offset = 0;
 static void render_logo(void) {
 
@@ -302,7 +304,15 @@ static void render_logo(void) {
     }
     if (timer_elapsed32(marquee_timer) > FRAME_DURATION) {
         marquee_timer = timer_read32();
-        frame();
+        if(timer_elapsed(marquee_sleep_timer) < OLED_TIMEOUT) {
+            frame();
+        }
+    }
+
+    if (current_wpm > 0) {
+        marquee_sleep_timer = timer_read();
+    } else if(timer_elapsed(marquee_sleep_timer) > OLED_TIMEOUT) {
+        oled_off();
     }
 }
 
@@ -343,7 +353,6 @@ static void print_status_narrow(void) {
         default:
             oled_write_ln_P(PSTR("Undef"), false);
     }
-    led_usb_state = host_keyboard_led_state();
     oled_write_ln_P(PSTR("CPSLK"), led_usb_state.caps_lock);
 
     render_keyboard_pet(0, 11);
@@ -357,8 +366,9 @@ oled_rotation_t oled_init_user(oled_rotation_t rotation) {
 }
 
 bool oled_task_user(void) {
+    current_wpm = get_current_wpm();
     if (is_keyboard_master()) {
-        current_wpm = get_current_wpm();
+        led_usb_state = host_keyboard_led_state();
         print_status_narrow();
     } else {
         render_logo();
