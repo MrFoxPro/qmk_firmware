@@ -135,7 +135,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 #ifdef OLED_ENABLE
 
 
-#define OLED_TIMEOUT 25000
+#define OLED_TIMEOUT 60000
 #define OLED_WIDTH_PX 128
 #define OLED_HEIGHT_PX 32
 
@@ -151,7 +151,7 @@ uint8_t current_wpm;
 /* <LUNA> */
 #define LUNA_MIN_WALK_SPEED 10
 #define LUNA_MIN_RUN_SPEED 50
-#define LUNA_ANIM_FRAME_DURATION 200
+#define LUNA_ANIM_FRAME_DURATION 120
 #define LUNA_ANIM_SIZE 96
 
 typedef struct {
@@ -566,7 +566,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             break;
         case KC_SPC:
             if (record->event.pressed) {
-                luna.is_jumping  = true;
+                luna.is_jumping = true;
                 luna.showed_jump = false;
             } else {
                 luna.is_jumping = false;
