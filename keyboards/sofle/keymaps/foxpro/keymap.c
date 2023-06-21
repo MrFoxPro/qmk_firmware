@@ -296,7 +296,7 @@ static const unsigned char PROGMEM logo[] = {
 #define MARQUE_ROW_BYTES (MARQUEE_BYTES / BYTES_IN_COL)
 
 // lower causes desync
-#define FRAME_DURATION 100
+#define FRAME_DURATION 80
 
 uint32_t marquee_timer = 0;
 uint32_t marquee_offset = 0;
